@@ -25,6 +25,7 @@ final class SensorController {
     var cameras: [ABCamera] = []
     var selectedCameraID = ""
     var onSample: ((PulseSample) -> Void)?
+    var onBreathingSample: ((Double, Double, Double) -> Void)?
     var onInvalidation: (() -> Void)?
     var onFailure: ((String) -> Void)?
     @ObservationIgnored private let bridge = ABSensor()
@@ -90,6 +91,9 @@ final class SensorController {
                         callback: timestamp, uptime: now, wallTime: wallTime)
                     let added = self.vitals.append(kind, value: reading.value,
                         confidence: reading.confidence?.doubleValue, stable: reading.stable, seconds: measuredAt)
+                    if kind == .breathing, added {
+                        self.onBreathingSample?(reading.value, reading.confidence?.doubleValue ?? 0, measuredAt)
+                    }
                     guard kind == .pulse, added else { continue }
                     self.pulseSamplesReceived += 1
                     guard now - measuredAt <= 3, measuredAt <= now + 0.5 else {
@@ -118,6 +122,10 @@ final class SensorController {
 
     func start(apiKey: String) async {
         guard !Task.isCancelled else { return }
+        // If the SmartSpectra SDK is already running in this continuous session, preserve it!
+        if isRunning && !isStarting && !isPreviewing {
+            return
+        }
         stop()
         vitals = LiveVitals(); metricClock = MetricClock()
         acceptedFrames = 0; blockedFrames = 0; metricPackets = 0; pulseSamplesReceived = 0
@@ -150,6 +158,7 @@ final class SensorController {
     }
 
     func startCameraPreview() async {
+        if isCameraRunning { return }
         stop()
         let token = generation
         isStarting = true; status = "Requesting camera"

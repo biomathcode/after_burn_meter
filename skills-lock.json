@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "skills": {
+    "apple-design": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/apple-design/SKILL.md",
+      "computedHash": "163ba8b42c7d9d5ccb08674266d4727c9ec610b9d876c906b1f29ce5e0d933da"
+    },
+    "rams": {
+      "source": "rams-design/rams-plugin",
+      "commit": "1a3b94d0b44109c7e138f6724ccb6f23d5104f97",
+      "sourceType": "github",
+      "skillPath": "skills/rams/SKILL.md",
+      "computedHash": "14535017d2733df9b7dda7aa2e17ddcf5ea60a21dbb80ee1fcb6b547de1d889c"
+    },
+    "slopbeth": {
+      "source": "ehmo/slopkit",
+      "commit": "b33718bb9283c11b09567dc714f92d90ffb7bd16",
+      "sourceType": "github",
+      "skillPath": "skills/slopbeth/SKILL.md",
+      "computedHash": "593639937163a7eb7f8c9ef63d411826a6cc2e6b0f292d1a9bbe380a2d0ef6fb"
+    },
+    "swiftui-liquid-glass": {
+      "source": "Dimillian/Skills",
+      "commit": "05ba982bfeb0d77d3c97d4542b0ee15034d05f84",
+      "sourceType": "github",
+      "skillPath": "swiftui-liquid-glass/SKILL.md",
+      "computedHash": "873b95095a16fb2acfa6dfbf0a5aa3fa24916b9bc2228829352b4c98554d8da4"
+    },
+    "swiftui-ui-patterns": {
+      "source": "Dimillian/Skills",
+      "commit": "05ba982bfeb0d77d3c97d4542b0ee15034d05f84",
+      "sourceType": "github",
+      "skillPath": "swiftui-ui-patterns/SKILL.md",
+      "computedHash": "e23fe9ebf7353b70408a9582c90b7bb2eb8ccdf1ed53e704aff00af45add9986"
+    },
+    "swiftui-view-refactor": {
+      "source": "Dimillian/Skills",
+      "commit": "05ba982bfeb0d77d3c97d4542b0ee15034d05f84",
+      "sourceType": "github",
+      "skillPath": "swiftui-view-refactor/SKILL.md",
+      "computedHash": "a8b2e2e01272490bd3d177c5095b25cd6cc8ceeed8805a0a2a5aa575436d6edd"
+    }
+  }
+}

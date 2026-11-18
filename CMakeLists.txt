@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(Afterburn VERSION 0.3.0 LANGUAGES CXX OBJCXX Swift)
+project(Afterburn VERSION 0.4.0 LANGUAGES CXX OBJCXX Swift)
 
 if(NOT APPLE OR NOT CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
     message(FATAL_ERROR "Afterburn requires an Apple Silicon Mac. SmartSpectra does not support Intel macOS.")

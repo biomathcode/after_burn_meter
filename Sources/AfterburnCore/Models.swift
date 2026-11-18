@@ -74,6 +74,7 @@ public struct PulseSample: Codable, Identifiable, Equatable, Sendable {
 }
 
 public struct RecoveryPolicy: Codable, Equatable, Sendable {
+    public var algorithmVersion: Int = 1
     public var warmupSeconds: Double = 12
     public var baselineSeconds: Double = 30
     public var confirmationSeconds: Double = 15
@@ -84,6 +85,24 @@ public struct RecoveryPolicy: Codable, Equatable, Sendable {
     public var maximumBPM: Double = 110
     public var maximumSampleGap: Double = 3
     public init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case algorithmVersion, warmupSeconds, baselineSeconds, confirmationSeconds
+        case toleranceBPM, minimumConfidence, minimumBPM, maximumBPM, maximumSampleGap
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        algorithmVersion = try values.decodeIfPresent(Int.self, forKey: .algorithmVersion) ?? 1
+        warmupSeconds = try values.decode(Double.self, forKey: .warmupSeconds)
+        baselineSeconds = try values.decode(Double.self, forKey: .baselineSeconds)
+        confirmationSeconds = try values.decode(Double.self, forKey: .confirmationSeconds)
+        toleranceBPM = try values.decode(Double.self, forKey: .toleranceBPM)
+        minimumConfidence = try values.decode(Double.self, forKey: .minimumConfidence)
+        minimumBPM = try values.decode(Double.self, forKey: .minimumBPM)
+        maximumBPM = try values.decode(Double.self, forKey: .maximumBPM)
+        maximumSampleGap = try values.decode(Double.self, forKey: .maximumSampleGap)
+    }
 
     public func accepts(_ sample: PulseSample) -> Bool {
         sample.seconds.isFinite && sample.bpm.isFinite && sample.confidence.isFinite &&
@@ -121,13 +140,38 @@ public struct SetRecord: Codable, Identifiable, Sendable {
     public let samples: [PulseSample]
     public let policy: RecoveryPolicy
     public let sdkVersion: String
+    public let captureStartedAt: Double?
 
-    public init(id: UUID = UUID(), date: Date = Date(), exerciseID: String,
-                exerciseName: String, setNumber: Int, repetitions: Int,
+    // Session demographics, 1-min baseline, and snapshots:
+    public let gender: String?
+    public let age: Int?
+    public let normalSeconds: Double?
+    public let peakPulseBPM: Double?
+    public let peakSnapshotData: Data?
+    public let restedSnapshotData: Data?
+    public let baselineSamples: [PulseSample]?
+    public let exerciseSamples: [PulseSample]?
+
+    // Respiration recovery (Afterburn), Pulse recovery, and Calories:
+    public let baselineBreathing: Double?
+    public let finalBreathing: Double?
+    public let breathRecoverySeconds: Double?
+    public let pulseRecoverySeconds: Double?
+    public let caloriesBurned: Double?
+    public let epocCalories: Double?
+
+    public init(id: UUID = UUID(), date: Date = Date(), exerciseID: String = "session",
+                exerciseName: String, setNumber: Int = 1, repetitions: Int = 0,
                 workSeconds: Double, recoverySeconds: Double, baselineBPM: Double,
                 finalBPM: Double?, outcome: SetOutcome,
-                hadMeasurementGaps: Bool, samples: [PulseSample],
-                policy: RecoveryPolicy, sdkVersion: String) {
+                hadMeasurementGaps: Bool = false, samples: [PulseSample],
+                policy: RecoveryPolicy = RecoveryPolicy(), sdkVersion: String = "3.5.0", captureStartedAt: Double? = nil,
+                gender: String? = nil, age: Int? = nil, normalSeconds: Double? = 30.0,
+                peakPulseBPM: Double? = nil, peakSnapshotData: Data? = nil, restedSnapshotData: Data? = nil,
+                baselineSamples: [PulseSample]? = nil, exerciseSamples: [PulseSample]? = nil,
+                baselineBreathing: Double? = nil, finalBreathing: Double? = nil,
+                breathRecoverySeconds: Double? = nil, pulseRecoverySeconds: Double? = nil,
+                caloriesBurned: Double? = nil, epocCalories: Double? = nil) {
         self.id = id; self.date = date; self.exerciseID = exerciseID
         self.exerciseName = exerciseName; self.setNumber = setNumber
         self.repetitions = repetitions; self.workSeconds = workSeconds
@@ -135,6 +179,70 @@ public struct SetRecord: Codable, Identifiable, Sendable {
         self.finalBPM = finalBPM; self.outcome = outcome; self.isDemo = false
         self.hadMeasurementGaps = hadMeasurementGaps; self.samples = samples
         self.policy = policy; self.sdkVersion = sdkVersion
+        self.captureStartedAt = captureStartedAt
+        self.gender = gender; self.age = age
+        self.normalSeconds = normalSeconds; self.peakPulseBPM = peakPulseBPM
+        self.peakSnapshotData = peakSnapshotData; self.restedSnapshotData = restedSnapshotData
+        self.baselineSamples = baselineSamples; self.exerciseSamples = exerciseSamples
+        self.baselineBreathing = baselineBreathing; self.finalBreathing = finalBreathing
+        self.breathRecoverySeconds = breathRecoverySeconds
+        self.pulseRecoverySeconds = pulseRecoverySeconds
+        self.caloriesBurned = caloriesBurned; self.epocCalories = epocCalories
+    }
+}
+
+// MARK: - Calorie & Energy Expenditure Calculator
+public struct CalorieCalculator: Sendable {
+    public static func calculate(
+        gender: String?,
+        age: Int?,
+        weightKg: Double = 70.0,
+        workSeconds: Double,
+        recoverySeconds: Double,
+        exerciseName: String,
+        averagePulseBPM: Double? = nil,
+        peakPulseBPM: Double? = nil
+    ) -> (total: Double, active: Double, epoc: Double) {
+        let name = exerciseName.lowercased()
+        let met: Double = {
+            if name.contains("burpee") { return 10.0 }
+            if name.contains("jack") { return 8.0 }
+            if name.contains("push") { return 8.0 }
+            if name.contains("squat") { return 7.5 }
+            if name.contains("run") { return 9.5 }
+            if name.contains("cycle") || name.contains("cycling") { return 7.5 }
+            if name.contains("yoga") { return 3.5 }
+            return 8.0
+        }()
+
+        let isFemale = gender?.lowercased().contains("female") == true
+        let userWeight = isFemale ? 60.0 : weightKg
+        let effectiveAge = Double(age ?? 26)
+        let effectiveHR = averagePulseBPM ?? (peakPulseBPM.map { $0 * 0.85 } ?? 125.0)
+
+        // Keytel et al. (2005) Heart-rate energy expenditure
+        let keytelKcalPerMin: Double
+        if !isFemale {
+            keytelKcalPerMin = ((-55.0969 + (0.6309 * effectiveHR) + (0.1988 * userWeight) + (0.2017 * effectiveAge)) / 4.184)
+        } else {
+            keytelKcalPerMin = ((-20.4022 + (0.4472 * effectiveHR) - (0.1263 * userWeight) + (0.074 * effectiveAge)) / 4.184)
+        }
+
+        // MET energy expenditure = (MET * 3.5 * weight) / 200 (kcal/min)
+        let metKcalPerMin = (met * 3.5 * userWeight) / 200.0
+        let blendedRatePerMin = max(4.0, (keytelKcalPerMin > 0 ? (keytelKcalPerMin * 0.55 + metKcalPerMin * 0.45) : metKcalPerMin))
+
+        let activeMinutes = max(0.5, workSeconds / 60.0)
+        let activeKcal = blendedRatePerMin * activeMinutes
+        // EPOC: acute 1-minute excess post-exercise oxygen consumption
+        let epocKcal = max(1.5, activeKcal * 0.20 * (recoverySeconds / 60.0))
+        let total = activeKcal + epocKcal
+
+        return (
+            total: (total * 10).rounded() / 10,
+            active: (activeKcal * 10).rounded() / 10,
+            epoc: (epocKcal * 10).rounded() / 10
+        )
     }
 }
 

@@ -3,60 +3,126 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         Group {
             if model.mayEnterApp {
                 ZStack(alignment: .top) {
-                    if model.section == .workout { ImmersiveStage() }
-                    else {
+                    if model.section == .workout {
+                        ImmersiveStage()
+                    } else {
                         ZStack {
-                            Palette.background
-                            LinearGradient(colors: [Palette.teal.opacity(0.08), .clear, .blue.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                            page.padding(.top, 94)
+                            AppColors.background.ignoresSafeArea()
+                            page
+                                .padding(.top, 84)
                         }
                     }
-                    if !model.isStageFocused { navigation.padding(.top, 30).padding(.horizontal, 24) }
+
+                    if !model.isStageFocused {
+                        navigation
+                            .padding(.top, AppSpacing.lg)
+                            .padding(.horizontal, AppSpacing.xl)
+                            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                    }
                 }
                 .frame(minWidth: 980, minHeight: 700)
                 .preferredColorScheme(model.section == .workout ? .dark : nil)
-            } else { ConsentView() }
+            } else {
+                ConsentView()
+            }
         }
-        .tint(Palette.teal)
+        .tint(AppColors.brandTeal)
         .alert("Something needs attention", isPresented: Binding(
-            get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
-                Button("OK") { model.errorMessage = nil }
-            } message: { Text(model.errorMessage ?? "") }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in model.isStageFocused = false }
-    }
-    @ViewBuilder private var page: some View {
-        switch model.section {
-        case .workout: ImmersiveStage()
-        case .exercises: ExerciseLibraryView()
-        case .history: HistoryView()
-        case .settings: SettingsView()
+            get: { model.errorMessage != nil },
+            set: { if !$0 { model.errorMessage = nil } }
+        )) {
+            Button("OK") { model.errorMessage = nil }
+        } message: {
+            Text(model.errorMessage ?? "")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
+            model.isStageFocused = false
         }
     }
+
+    @ViewBuilder
+    private var page: some View {
+        switch model.section {
+        case .workout:
+            ImmersiveStage()
+        case .history:
+            HistoryView()
+        case .settings:
+            SettingsView()
+        }
+    }
+
     private var navigation: some View {
         GlassGroup {
-            HStack(spacing: 18) {
-                Label("Afterburn", systemImage: "flame.fill").font(.system(size: 19, weight: .semibold, design: .rounded))
-                Spacer(minLength: 15)
-                HStack(spacing: 4) {
+            HStack(spacing: AppSpacing.md) {
+                // Brand mark
+                HStack(spacing: AppSpacing.xs) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(AppColors.brandOrange)
+                    Text("Afterburn")
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppColors.ink)
+                }
+
+                Spacer(minLength: AppSpacing.md)
+
+                // Navigation segmented pills
+                HStack(spacing: AppSpacing.xxs) {
                     ForEach(AppSection.allCases) { section in
+                        let isSelected = model.section == section
                         Button {
-                            withAnimation(reduceMotion ? nil : .smooth(duration: 0.25)) { model.section = section }
+                            withAnimation(reduceMotion ? nil : AppAnimation.springSnappy) {
+                                model.section = section
+                            }
                         } label: {
-                            Label(section == .workout ? "Train" : section == .exercises ? "Exercises" : section == .history ? "Journal" : "Settings", systemImage: section.symbol)
-                                .font(.system(size: 12, weight: .medium))
-                                .padding(.horizontal, 13).padding(.vertical, 10)
-                                .background(model.section == section ? Color.primary.opacity(0.1) : .clear, in: Capsule())
-                        }.buttonStyle(.plain).accessibilityIdentifier("nav-\(section.rawValue)")
+                            Label(
+                                section == .workout ? "Train" :
+                                section == .history ? "Journal" : "Settings",
+                                systemImage: section.symbol
+                            )
+                            .font(isSelected ? AppTypography.calloutMedium : AppTypography.callout)
+                            .foregroundStyle(isSelected ? AppColors.ink : AppColors.secondary)
+                            .padding(.horizontal, AppSpacing.sm)
+                            .padding(.vertical, AppSpacing.xs)
+                            .background(
+                                isSelected ? AppColors.ink.opacity(0.09) : Color.clear,
+                                in: Capsule()
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(isSelected ? AppColors.borderHighlight.opacity(0.3) : Color.clear, lineWidth: 0.8)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .buttonStyle(.tactile(scale: 0.96))
+                        .accessibilityIdentifier("nav-\(section.rawValue)")
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
                     }
                 }
-                Spacer(minLength: 15)
-                Label(model.sensor.isCameraRunning ? "Camera live" : "Camera off", systemImage: model.sensor.isCameraRunning ? "video.fill" : "video.slash")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-            }.padding(10).padding(.horizontal, 10).floatingGlass(radius: 26)
+                .padding(3)
+                .background(AppColors.subtleFill, in: Capsule())
+
+                Spacer(minLength: AppSpacing.md)
+
+                // Camera live indicator
+                HStack(spacing: AppSpacing.xs) {
+                    Circle()
+                        .fill(model.sensor.isCameraRunning ? AppColors.brandMint : AppColors.secondary.opacity(0.4))
+                        .frame(width: 7, height: 7)
+                    Text(model.sensor.isCameraRunning ? "Camera live" : "Camera off")
+                        .font(AppTypography.captionMedium)
+                        .foregroundStyle(AppColors.secondary)
+                }
+            }
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.vertical, AppSpacing.xs + 2)
+            .floatingGlass(radius: AppRadius.xxl)
         }
     }
 }
